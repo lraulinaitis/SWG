@@ -1,0 +1,124 @@
+---
+title: "SWG Dredges"
+output: html_document
+date: "2024-04-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dredges
+
+```{r data_preprocess}
+# drop nas
+net_WBF_clean <- net_wildbeesfull |> 
+  drop_na(prop_grassy_1km, availwater, precip90, avgtemp90, precip90_sp18, avgtemp90_sp18, percent_bare, treatment, year)
+
+# scale continuous variables
+sc_net_WBF_clean <- net_WBF_clean 
+sc_net_WBF_clean[6:34] <- scale(sc_net_WBF_clean[6:34])
+sc_net_WBF_clean[38] <- scale(sc_net_WBF_clean[38])
+```
+
+```{r fl_abun}
+# run models
+fl_abun <- lmer(flr_abun ~ prop_grassy_1km + availwater + precip90 + avgtemp90 + 
+                precip90_sp18 + avgtemp90_sp18 + percent_bare + treatment + year + (1|plot),
+                data = sc_net_WBF_clean, na.action = na.fail)
+
+# model selection
+dredge_flabun <- dredge(fl_abun)
+dredge_flabun
+
+# model averaging - top model has no others within delta<4, so skipped.
+#flabun_avg <- summary(model.avg(dredge_flabun, subset = delta < 4, fit = TRUE))
+#flabun_avg
+
+# FINAL FLORAL ABUN GLOBAL MODEL
+fl_abun_final <- lmer(abun ~ precip90_sp18 + avgtemp90_sp18 + year + (1|plot), 
+                data = sc_net_WBF_clean, na.action = na.fail)
+
+hist(resid(fl_abun_final)) # residuals non-normally distributed - negative binomial
+```
+
+```{r fl_rich}
+# run models
+fl_rich <- lmer(flr_rich ~ prop_grassy_1km + availwater + precip90 + avgtemp90 + 
+                precip90_sp18 + avgtemp90_sp18 + percent_bare + treatment + year + (1|plot),
+                data = sc_net_WBF_clean, na.action = na.fail)
+
+# model selection
+dredge_flrich <- dredge(fl_rich)
+dredge_flrich
+
+# model average
+flrich_avg <- summary(model.avg(dredge_flrich, subset = delta < 4, fit = TRUE))
+flrich_avg
+
+# FINAL FLORAL RICH GLOBAL MODEL
+fl_rich_final <- lmer(flr_rich ~ availwater + avgtemp90 + precip90 + precip90_sp18 + prop_grassy_1km
+                + treatment + year + (1|plot), 
+                data = sc_net_WBF_clean, na.action = na.fail)
+
+hist(resid(fl_rich_final)) # residuals normally distributed - POISSON
+```
+
+```{r bee_abun}
+# run models
+bee_abun <- lmer(abun ~ flr_abun + flr_rich + prop_grassy_1km + availwater + precip90 + avgtemp90 + percent_bare + treatment + year + (1|plot), data = sc_net_WBF_clean, na.action = na.fail)
+
+# model selection
+dredge_beeabun <- dredge(bee_abun)
+dredge_beeabun
+
+# model average
+beeabun_avg <- summary(model.avg(dredge_beeabun, subset = delta < 4, fit = TRUE))
+beeabun_avg
+
+# FINAL GLOBAL BEE ABUN MODEL
+bee_abun_final <- lmer(abun ~ flr_rich + percent_bare + precip90 + year + (1|plot), 
+                data = sc_net_WBF_clean, na.action = na.fail)
+
+hist(resid(bee_abun_final)) # residuals non-normally distributed - negative binomial
+```
+
+```{r bee_rich}
+# run models
+bee_rich <- lmer(rich ~ flr_abun + flr_rich + prop_grassy_1km + availwater + precip90 + avgtemp90 + percent_bare + treatment + year + (1|plot), data = sc_net_WBF_clean, na.action = na.fail)
+
+# model selection
+dredge_beerich <- dredge(bee_rich)
+dredge_beerich
+
+#  model averaging - top model has no others within delta<4, so skipped.
+# beerich_avg <- summary(model.avg(dredge_beerich, subset = delta < 4, fit = TRUE))
+# beerich_avg
+
+# ABUN GLOBAL MODEL
+bee_rich_final <- lmer(rich ~ flr_rich + precip90 + year + (1|plot), 
+                 data = sc_net_WBF_clean, na.action = na.fail)
+
+hist(resid(bee_rich_final)) # residuals non-normally distributed - negative binomial
+```
+
+FINAL MODELS
+
+```{r}
+# FINAL FLORAL ABUN GLOBAL MODEL
+fl_abun_final <- lmer(flr_abun ~ precip90_sp18 + avgtemp90_sp18 + year + (1|plot), 
+                      data = sc_net_WBF_clean)
+
+# FINAL FLORAL RICH GLOBAL MODEL
+fl_rich_final <- lmer(flr_rich ~ availwater + avgtemp90 + precip90 + precip90_sp18 +
+                      prop_grassy_1km + treatment + year + (1|plot), 
+                      data = sc_net_WBF_clean)
+
+# FINAL GLOBAL BEE ABUN MODEL
+bee_abun_final <- lmer(abun ~ flr_rich + percent_bare + precip90 + year + (1|plot), 
+                data = sc_net_WBF_clean)
+
+# FINAL GLOBAL BEE RICH MODEL
+bee_rich_final <- lmer(rich ~ flr_rich + precip90 + year + (1|plot), 
+                 data = sc_net_WBF_clean)
+```
